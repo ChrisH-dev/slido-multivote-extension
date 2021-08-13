@@ -18,7 +18,7 @@
 
   "content_scripts": [
     {
-      "matches": ["*://app.sli.do/event/*/live/questions"],
+      "matches": ["*://app.sli.do/event/*"],
       "js": ["jquery-3.6.0.js", "content_scripts/multivote.js"]
     }
   ]
