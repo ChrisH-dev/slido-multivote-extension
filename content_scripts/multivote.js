@@ -26,7 +26,7 @@ function getAuthToken(eventUuid) {
     });
 }
 
-function addLike(eventUuid, authToken, questionId) {
+function sendLike(eventUuid, authToken, questionId, score) {
     // appears to be rate limited so wait 2 seconds before making call
     setTimeout(() => {
         // console.log("event uuid: " + eventUuid + " questionId: " + questionId + " authToken: " + authToken);
@@ -34,7 +34,7 @@ function addLike(eventUuid, authToken, questionId) {
             url: `https://app.sli.do/api/v0.5/events/${eventUuid}/questions/${questionId}/like`,
             method: "POST",
             headers: {Authorization: `Bearer ${authToken}`},
-            data: { "score": 1 },
+            data: { "score": score },
             success: function (data) {
                 // console.log(data);
             },
@@ -45,28 +45,58 @@ function addLike(eventUuid, authToken, questionId) {
     }, 2000);
 }
 
-// poll until page content it loaded (this is because it's a react app so this script runs before the page has all the data loaded)
-let scanningIntervalId = setInterval(() => {
-    let questionContainers = document.getElementsByClassName("question-item");
+function addThumbsUp(eventUuid, authToken, questionId) {
+    sendLike(eventUuid, authToken, questionId, 1);
+}
 
-    if (questionContainers.length > 0) {
-        clearInterval(scanningIntervalId);
+function addThumbsDown(eventUuid, authToken, questionId) {
+    sendLike(eventUuid, authToken, questionId, -1);
+}
 
-        getEventUuid().then(eventUuid => {
-            for (let questionContainer of questionContainers) {
-                let score_button = questionContainer.getElementsByClassName("score__btn")[0];
-                let questionId = questionContainer.getAttribute("data-qid");
+const observer = new MutationObserver(function(mutations_list) {
+    mutations_list.forEach(function(mutation) {
+        mutation.addedNodes.forEach(function(added_node) {
 
-                // override button click handler so it does our stuff only
-                score_button.addEventListener("click", function(event) {
-                    getAuthToken(eventUuid).then(authToken => {
-                        addLike(eventUuid, authToken, questionId);
+            if (added_node.classList.contains("question-list__item")) {
+                let questionContainers = added_node.getElementsByClassName("question-item");
+
+                if (questionContainers.length > 0) {
+                    getEventUuid().then(eventUuid => {
+                        console.log(eventUuid);
+                        for (let questionContainer of questionContainers) {
+                            let score_button_plus = questionContainer.getElementsByClassName("score__btn--plus")[0];
+                            let score_button_minus = questionContainer.getElementsByClassName("score__btn--minus")[0];
+                            let questionId = questionContainer.getAttribute("data-qid");
+
+                            if (score_button_plus !== undefined) {
+                                // override button click handler so it does our stuff only
+                                score_button_plus.addEventListener("click", function (event) {
+                                    getAuthToken(eventUuid).then(authToken => {
+                                        addThumbsUp(eventUuid, authToken, questionId);
+                                    });
+
+                                    // this stops it calling other event handlers
+                                    event.stopImmediatePropagation();
+                                }, true);
+                            }
+
+                            if (score_button_minus !== undefined) {
+                                score_button_minus.addEventListener("click", function (event) {
+                                    getAuthToken(eventUuid).then(authToken => {
+                                        addThumbsDown(eventUuid, authToken, questionId);
+                                    });
+
+                                    // this stops it calling other event handlers
+                                    event.stopImmediatePropagation();
+                                }, true);
+                            }
+                        }
                     });
+                }
 
-                    // this stops it calling other event handlers
-                    event.stopImmediatePropagation();
-                }, true);
             }
         });
-    }
-}, 100);
+    });
+});
+
+observer.observe(document, { subtree: true, childList: true });
